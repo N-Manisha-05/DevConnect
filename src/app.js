@@ -1,77 +1,96 @@
 const express = require("express");
 const connectDB = require("./config/database");
 const User = require("./models/user");
-
+const {validateSignupData} = require("./utils/validation");
+const bcrypt = require("bcrypt");
+const cookieParser = require("cookie-parser");
+const jwt = require("jsonwebtoken");
+const {userAuth} = require("./middleware/auth");
 
 const app = express();
 
 app.use(express.json());
+app.use(cookieParser());
 
 // POST:signup
 app.post("/signup",async(req,res)=>{
     // console.log(req.body);
    
     try{
-        const user = new User(req.body); 
+        const {firstName, lastName, emailid, password}  = req.body;
+        validateSignupData(req);
+        const hashPassword = await bcrypt.hash(password,10);
+        const user = new User({
+            firstName,
+            lastName,
+            emailid,
+            password: hashPassword,
+     }); 
         await user.save();
         res.send("User added successfully");
 
     }catch(err){
-        res.status(400).send("Something went wrong");
+        res.status(400).send("Something went wrong"+err.message);
     }
 
 });
 
-//GET:feed
-app.get("/feed",async(req,res)=>{
+// POST:Login
+app.post("/login", async(req,res)=>{
     try{
-        const users = await User.find({});
-        if (users.length == 0){
-            res.status(404).send("User not found");
-        }else{
-            res.send(users)
+        const {emailid, password} = req.body;
+        const user = await User.findOne({emailid:emailid});
+        if(!user){
+            throw new Error("Invalid credentials");
         }
-        
+        const ispassword = user.validatePassword(user.password);
+
+        if(!ispassword){
+
+            throw new Error("Invalid credentials");
+
+        }else{
+
+            const token = await user.getJWT();
+
+            res.cookie("token",token);
+
+            res.send("Login successfull");
+        }
+    
 
     }catch(err){
-        console.error(err.message);
-        res.status(400).send("Something went wrong");
+        console.log(err.message);
+        res.send("Something went wrong"+err.message);
     }
-
 });
 
-//DELETE :user
-app.delete("/user",async(req,res)=>{
-    const userid = req.body.userid;
+//GET:profile
+app.get("/profile",userAuth, async(req,res)=>{
 
     try{
-        await User.findByIdAndDelete(userid);
-        res.send("User deleted successfully");
+
+        const user = req.user;
+
+        if(!user){
+            throw new Error("No user found,Try logging again");
+        }
+
+        res.send(user);
 
     }catch(err){
-        console.error(err.message);
-        res.status(400).send("Something went wrong");
+        res.send("Something went wrong"+err.message);
     }
+
 });
 
-//PATCH : update
+//POST:sendConnectionRequest
+app.post("/sendConnectionRequest",userAuth,async(req,res)=>{
 
-app.patch("/user",async(req,res)=>{
-    const userid = req.body.userid;
-    const data = req.body
+    const user = req.user;
+    res.send(user.firstName+" sent the connection request");
 
-    try{
-        await User.findByIdAndUpdate({_id:userid},data);
-        res.send("User updated successfully");
-
-    }catch(err){
-        console.error(err.message);
-        res.status(400).send("Something went wrong");
-    }
 });
-
-
-
 
 connectDB().then(()=>{
     console.log("Database Connected successfully.");
