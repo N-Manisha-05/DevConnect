@@ -44,7 +44,7 @@ const userSchema = new mongoose.Schema({
         type:String,
         validate(value){
             if(!["male","female","others"].includes(value)){
-                throw new error("Gender data not valid");
+                throw new Error("Gender data not valid");
             }
         }
     },
@@ -77,7 +77,7 @@ userSchema.methods.getJWT = async function(){
 
 userSchema.methods.validatePassword = async function(passwordByUser){
 
-    passwordHash = this.password;
+    const passwordHash = this.password;
     const isPasswordValid = await bcrypt.compare(passwordByUser,passwordHash);
     return isPasswordValid;
 };
